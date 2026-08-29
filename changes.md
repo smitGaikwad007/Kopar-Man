@@ -252,3 +252,29 @@ The existing logistics search and booking remains completely untouched. Data com
 
 **Next Recommended Step:**
 - Proceed to Prompt 6: Build the WhatsApp/n8n webhook endpoints to consume real logistics bookings and convert internal `KPM-XXX` tracking records to conversational responses.
+
+## Prompt 5A — Render Deployment & Database Initialization Fix
+
+**Objective:** Fix deployment issues on Render where the database schema was not initialized (resulting in `no such table` errors). Ensure automatic database migrations on startup and strictly enforce a PostgreSQL requirement in production environments without breaking local SQLite development.
+
+**Files Created/Modified:**
+- `app/core/config.py`: Modified the `DATABASE_URL` loader with a pre-validator. It now:
+  1. Detects `ENVIRONMENT=production`.
+  2. Raises an error if `DATABASE_URL` is missing or uses `sqlite` in production (prevents silent failure).
+  3. Automatically rewrites Render's `postgres://` URLs to SQLAlchemy's expected `postgresql://`.
+- `app/main.py`: Confirmed no hardcoded `create_all()` is executed in production (enforcing the use of Alembic).
+- `render.yaml`: Created a Blueprint Infrastructure-as-Code file to auto-configure the Render Web Service and PostgreSQL database.
+- `test_config.py`: Added tests to verify environment logic.
+- `README.md`: Updated with the exact deployment commands and instructions.
+
+**Render Configuration Applied (`render.yaml`):**
+- **Build Command:** `pip install -r requirements.txt`
+- **Start Command:** `alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+- **Environment Variables:** `ENVIRONMENT=production`
+
+**Validation:**
+- Local tests successfully passed (43 tests, 42 pass, 1 expected SQLite xfail).
+- Empty database initialized successfully using `alembic upgrade head` capturing all 10 base tables + `alembic_version`.
+
+**Next Recommended Step:**
+- Deploy to Render via the new `render.yaml` Blueprint or manual settings, confirm endpoints respond correctly using an empty PostgreSQL database, and use the CSV importer/sync endpoint to load production data safely.

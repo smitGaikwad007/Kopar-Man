@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: kopar-man-api
+    env: python
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.13.7
+      - key: ENVIRONMENT
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: kopar-man-db
+          property: connectionString
+
+databases:
+  - name: kopar-man-db
+    databaseName: koparman
+    user: koparman_user
+    plan: free
