@@ -1,0 +1,3 @@
+bus_id,bus_number,service_type,operator,status,parcel_enabled,data_source
+bus_demo_1,DEMO-BUS-001,EXPRESS,MSRTC,ACTIVE,True,DEMO
+bus_demo_2,DEMO-BUS-002,ORDINARY,MSRTC,ACTIVE,False,DEMO

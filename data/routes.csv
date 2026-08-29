@@ -1,0 +1,2 @@
+route_id,route_name,origin,destination,active,data_source
+rt_demo_1,Demo Route 1,Kopargaon,Rahata,True,DEMO

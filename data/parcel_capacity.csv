@@ -1,0 +1,3 @@
+bus_id,schedule_id,route_id,from_stop,to_stop,max_safe_capacity_kg,reserved_capacity_kg,data_source
+bus_demo_1,sch_demo_1,rt_demo_1,Kopargaon,Shirdi,100.0,0.0,DEMO
+bus_demo_1,sch_demo_1,rt_demo_1,Shirdi,Rahata,100.0,0.0,DEMO
