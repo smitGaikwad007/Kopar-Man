@@ -368,3 +368,29 @@ PYTHONPATH=. python scripts/import_timetable.py --dir data --db "$DATABASE_URL"
 
 ### Tests
 17 new tests in `tests/test_timetable.py`. Full suite: 59 passed, 1 xfailed (SQLite concurrency — expected).
+
+## Prompt 6A — Timetable Router Exposure Fix
+
+**Objective:** Diagnose and fix why the `GET /api/timetable/search` endpoint was missing from the live Render deployment despite the code existing in GitHub.
+
+**Diagnosis:**
+Tracing the code locally confirmed that `app/api/endpoints/timetable_endpoint.py` was properly registered in `app/api/api_v1.py` and correctly loaded by `app/main.py`. Local execution of `app.openapi()` proved the endpoint (`/api/timetable/search`) was present.
+
+The root cause was a **PostgreSQL database migration crash on Render**.
+In Alembic migration `2cf9ab210dbd` (and subsequently `9c2b1c94862b`), SQLAlchemy was instructed to create an Enum column:
+`sa.Column('data_source', sa.Enum('...', name='datasource'), nullable=False)`
+
+Because a Postgres Enum type named `datasource` had already been created in the initial migration (`d2f5a9646c4d`), executing this instruction caused PostgreSQL to attempt to run `CREATE TYPE datasource AS ENUM (...)` again, which threw a fatal `type "datasource" already exists` error.
+Because the `alembic upgrade head` step of the Render Start Command crashed, Render rolled back the deployment to the last successful build (Prompt 5), which did not include the timetable endpoint.
+
+**Fix:**
+Made the minimum code change to the problematic migration files (`alembic/versions/2cf9ab210dbd_...` and `9c2b1c94862b_...`). Changed the SQLAlchemy instruction from `sa.Enum(..., name='datasource')` to `sa.String()` for the migration file alone. This strictly prevents Alembic from attempting to redefine the existing PostgreSQL Enum, while safely writing the string values into the database (which SQLAlchemy transparently casts back to the Python Enum model in the application).
+
+The router registration code was completely correct and unmodified.
+
+**Files Changed:**
+- `alembic/versions/2cf9ab210dbd_add_timetable_entries_table.py`
+- `alembic/versions/9c2b1c94862b_add_timetable_departures_table.py`
+
+**Expected Outcome:**
+Render will now successfully complete `alembic upgrade head`, allowing `uvicorn app.main:app` to boot the latest commit and expose `/api/timetable/search`.
