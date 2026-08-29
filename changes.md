@@ -278,3 +278,93 @@ The existing logistics search and booking remains completely untouched. Data com
 
 **Next Recommended Step:**
 - Deploy to Render via the new `render.yaml` Blueprint or manual settings, confirm endpoints respond correctly using an empty PostgreSQL database, and use the CSV importer/sync endpoint to load production data safely.
+
+## Prompt 6 — Authenticated Kopargaon Bus Stand Timetable
+
+**Objective:** Integrate the authenticated Kopargaon Bus Stand Timetable (55 destinations, 143 departure entries) into the Kopar-Man backend so that the chatbot can answer real timetable questions ("Shirdi bus timing?", "Morning buses to Nashik?"), while strictly preserving the principle that unknown information (bus identity, intermediate stops, arrival times, parcel capacity) remains unknown rather than being fabricated.
+
+### Key Architectural Decision
+The timetable source provides only `origin`, `destination`, and `departure_time`. The existing `Schedule` model requires `bus_id`, `route_id`, `service_date`, and `arrival_time` — all unknown from this source. Rather than fabricating values or polluting the Schedule table, a new dedicated `TimetableDeparture` model was created that represents exactly what is known and nothing more.
+
+**TimetableDeparture records are structurally invisible to the parcel matching engine** — they have no `bus_id`, no `route_id`, and no `ParcelCapacity` counterpart. Only `Schedule` rows linked to real buses and parcel capacity records are considered for parcel transport recommendations.
+
+### Files Created
+- `data/timetable.csv` — All 143 departure entries, exactly as extracted from the authenticated PDF
+- `app/models/domain.py` — Added `TimetableDeparture` model (`timetable_departures` table)
+- `app/services/timetable.py` — `validate_timetable_rows()`, `upsert_timetable_rows()`, `search_timetable()`
+- `app/api/endpoints/timetable_endpoint.py` — `GET /api/timetable/search` endpoint
+- `scripts/import_timetable.py` — CLI import script with `--dry-run` support
+- `tests/test_timetable.py` — 17 tests
+- `alembic/versions/9c2b1c94862b_*.py` — Migration creating `timetable_departures` table
+
+### Files Modified
+- `app/api/api_v1.py` — Registered `/api/timetable` router
+
+### Database Changes
+- New table: `timetable_departures` (departure_id PK, origin, destination, departure_time, data_source=OFFICIAL, source_doc, source_name, valid_from, valid_until, created_at, updated_at)
+- Indexes: `ix_timetable_departures_origin`, `ix_timetable_departures_destination`
+- Uniqueness enforced at application level on (origin, destination, departure_time) for idempotent imports
+
+### Timetable Data Summary
+- **Destinations imported:** 55
+- **Departure records imported:** 143
+- **data_source:** OFFICIAL (enforced — imports with any other value are rejected)
+- **source_doc:** Kopargaon-Bus-Stand-Timetable.pdf
+- **source_name:** Authenticated Kopargaon Bus Stand Timetable
+
+### New Endpoint
+```
+GET /api/timetable/search
+  ?origin=Kopargaon            (required)
+  &destination=Shirdi          (optional, case-insensitive partial match)
+  &period=morning|afternoon|evening|night  (optional)
+  &after_time=HH:MM            (optional)
+```
+
+### Example Response (Kopargaon → Shirdi)
+```json
+{
+  "origin": "Kopargaon",
+  "destination_filter": "Shirdi",
+  "result_count": 3,
+  "destinations": [
+    {
+      "destination": "Shirdi",
+      "departures": ["08:00", "11:30", "15:00"],
+      "data_source": "OFFICIAL",
+      "source_doc": "Kopargaon-Bus-Stand-Timetable.pdf",
+      "source_name": "Authenticated Kopargaon Bus Stand Timetable"
+    }
+  ],
+  "note": "These are authenticated timetable departures. Bus identity, intermediate stops, and arrival times are not available in this source. These services are NOT listed as parcel-capable."
+}
+```
+
+### Validation Rules
+- All times must be valid HH:MM (00:00–23:59)
+- All records must have data_source=OFFICIAL
+- Empty origin or destination is rejected
+- Duplicate (origin, destination, departure_time) within a single import batch is rejected
+- Re-import is idempotent (existing rows are updated, not duplicated)
+- Failed imports roll back fully
+
+### How Timetable Differs from Parcel-Capable Transport Data
+| Attribute | TimetableDeparture | Schedule (parcel-capable) |
+|---|---|---|
+| bus_id | ✗ Not present | ✓ Required |
+| route_id | ✗ Not present | ✓ Required |
+| service_date | ✗ Not present | ✓ Required |
+| arrival_time | ✗ Not present | ✓ Present |
+| ParcelCapacity | ✗ None | ✓ Required for parcel booking |
+| Appears in /logistics/search | ✗ Never | ✓ Yes |
+| Appears in /timetable/search | ✓ Yes | ✗ No |
+| data_source | OFFICIAL | DEMO/OFFICIAL/OPERATOR |
+
+### Production Import Command (Render PostgreSQL)
+```bash
+# Run after migrations
+PYTHONPATH=. python scripts/import_timetable.py --dir data --db "$DATABASE_URL"
+```
+
+### Tests
+17 new tests in `tests/test_timetable.py`. Full suite: 59 passed, 1 xfailed (SQLite concurrency — expected).

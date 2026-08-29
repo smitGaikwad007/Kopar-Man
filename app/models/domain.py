@@ -163,3 +163,39 @@ class TrafficEvent(Base):
     description = Column(Text)
     active = Column(Boolean, default=True)
 
+
+class TimetableDeparture(Base):
+    """
+    Represents a recurring timetable departure from an origin to a destination.
+
+    This model exists specifically to store authenticated timetable information
+    (origin, destination, departure_time) WITHOUT requiring bus identity, route
+    segments, service dates, or parcel capacity — none of which are present in
+    the authenticated Kopargaon Bus Stand Timetable source document.
+
+    These records are NEVER considered parcel-capable by the matching engine.
+    Parcel transport requires explicit ParcelCapacity records linked to a
+    Schedule with a known bus and route.
+
+    Uniqueness is enforced on (origin, destination, departure_time) to allow
+    idempotent re-imports.
+    """
+    __tablename__ = "timetable_departures"
+
+    departure_id = Column(String, primary_key=True, default=generate_uuid)
+    origin = Column(String, nullable=False, index=True)
+    destination = Column(String, nullable=False, index=True)
+    departure_time = Column(String, nullable=False)   # HH:MM, 24-hour
+
+    # Source trust and provenance metadata
+    data_source = Column(Enum(DataSource), nullable=False, default=DataSource.OFFICIAL)
+    source_doc = Column(String, nullable=True)         # e.g. "Kopargaon-Bus-Stand-Timetable.pdf"
+    source_name = Column(String, nullable=True)        # human-readable name
+
+    # Validity window (populated when the source specifies one; NULL = always valid)
+    valid_from = Column(DateTime, nullable=True)
+    valid_until = Column(DateTime, nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+

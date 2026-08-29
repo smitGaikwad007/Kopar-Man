@@ -41,3 +41,22 @@ Every record must have a `data_source` column indicating its origin. Allowed val
 - `DEMO`: Placeholder/dummy data for UI testing.
 
 **Never** label simulated data as `OFFICIAL`.
+
+## Timetable Import (Prompt 6)
+
+Import the authenticated Kopargaon Bus Stand Timetable from `data/timetable.csv`:
+
+```bash
+# Dry-run (validate only)
+PYTHONPATH=. python scripts/import_timetable.py --dry-run
+
+# Import to default SQLite (local dev)
+PYTHONPATH=. python scripts/import_timetable.py
+
+# Import to PostgreSQL (Render production)
+PYTHONPATH=. python scripts/import_timetable.py --db "$DATABASE_URL"
+```
+
+The CSV must contain columns: `origin, destination, departure_time, data_source, source_doc, source_name`
+
+All rows must carry `data_source=OFFICIAL`. Re-imports are fully idempotent — no duplicates will be created.

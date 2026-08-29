@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 from app.api.endpoints import health, routes, buses, schedules, parcels, logistics, traffic, admin
+from app.api.endpoints import timetable_endpoint
 
 api_router = APIRouter()
 
@@ -11,3 +12,4 @@ api_router.include_router(parcels.router, prefix="/parcels", tags=["Parcels"])
 api_router.include_router(logistics.router, prefix="/logistics", tags=["Logistics"])
 api_router.include_router(traffic.router, prefix="/traffic", tags=["Traffic"])
 api_router.include_router(admin.router, prefix="/admin", tags=["Admin"])
+api_router.include_router(timetable_endpoint.router, prefix="/timetable", tags=["Timetable"])
