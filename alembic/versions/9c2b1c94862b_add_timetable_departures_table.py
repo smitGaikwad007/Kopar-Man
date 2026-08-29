@@ -25,7 +25,7 @@ def upgrade() -> None:
     sa.Column('origin', sa.String(), nullable=False),
     sa.Column('destination', sa.String(), nullable=False),
     sa.Column('departure_time', sa.String(), nullable=False),
-    sa.Column('data_source', sa.Enum('OFFICIAL', 'OPERATOR', 'VERIFIED_LOCAL', 'SIMULATION', 'DEMO', 'EXTERNAL_PROVIDER', 'MANUAL', name='datasource'), nullable=False),
+    sa.Column('data_source', sa.String(), nullable=False),
     sa.Column('source_doc', sa.String(), nullable=True),
     sa.Column('source_name', sa.String(), nullable=True),
     sa.Column('valid_from', sa.DateTime(), nullable=True),
